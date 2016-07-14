@@ -42,9 +42,7 @@
             })([]);
         },
         randChar: function randChar() {
-            var validChar = 'abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ~!@#$%^&*()-=+{}[]<>?/\\';
-
-            return validChar[util.randInt(0, validChar.length - 1)];
+            return String.fromCharCode(util.randInt(33, 126));
         },
         randInt: function randInt(min, max) {
             if (min === undefined && max === undefined) {
@@ -76,31 +74,19 @@
         util.assign(this, options);
     }
 
-    Character.prototype.render = function(context, options) {
+    Character.prototype.render = function(context, x, y) {
         context.font = context.font.replace(/\d+/, this.fontSize);
         context.fillStyle = this.fillStyle;
-
-        context.fillText(
-        	util.randChar(), 
-        	options.x, 
-        	options.y + options.offset * this.fontSize
-        );
-
-        (function(character) {
-            setTimeout(function() {
-                window.requestAnimationFrame(function() {
-                    character.render(context, options);
-                });
-            }, options.speed);
-        })(this);
+        context.clearRect(x - 8, y - this.fontSize, this.fontSize + 14, this.fontSize);
+        context.fillText(util.randChar(), x, y);
     }
 
     function CharacterList(length, options) {
         util.assign(this, util.assign({
             fontSize: 16,
-            speed: 180,
-            gradientStop: '#00ff00ff',
-            gradientStart: '#ffffffff'
+            speed: 60,
+            gradientStop: '#ffffff00',
+            gradientStart: '#00ff00ff'
         }, options));
         this.rgbaList = util.gradientColor(
             this.gradientStart,
@@ -121,37 +107,50 @@
         }
     }
 
-    CharacterList.prototype.render = function(canvas, options) {
-        var characterList = this, 
-        	context = canvas.getContext('2d');
+    CharacterList.prototype.render = function(canvas, x, y) {
+        var fontSize = this.fontSize,
+            length = this.characteries.length;
 
-        context.textBaseline = 'top';
-        function renderCharacterByOffset(offset) {
-            window.requestAnimationFrame(function() {
-                characterList.characteries[offset].render(
-                    context, {
-                    	x: options.x,
-                    	y: options.y,
-                    	offset: offset,
-                    	speed: characterList.speed
-                    });
+        (function(characterList) {
+            var context = canvas.getContext('2d');
+
+            function renderCharacterByIndex(n) {
+                window.requestAnimationFrame(function() {
+                    characterList.characteries[n].render(
+                        context, x, y - fontSize * (n + 1)
+                    );
+                });
+            }
+
+            characterList.characteries.forEach(function(character, i) {
+                (function(n) {
+                    setTimeout(function() {
+                        renderCharacterByIndex(n);
+                    }, characterList.speed);
+                })(i);
             });
-        }
 
-        characterList.characteries.forEach(function(character, i) {
-            (function(offset) {
+            if (y - length * fontSize < canvas.height) {
                 setTimeout(function() {
-                    renderCharacterByOffset(offset);
-                }, characterList.speed * offset)
-            })(i);
-        });
+                    characterList.render(canvas, x, y + fontSize);
+                    (function(p) {
+                        var characteries = characterList.characteries;
 
-        if (options.y < canvas.height) {
-	        setTimeout(function () {
-	        	options.y += characterList.fontSize;
-	        	characterList.render(canvas, options);
-	        }, characterList.speed);
-        }
+                        if (p < 0.1 || p > 0.9) {
+                            for (var i = 0; i < length; i++) {
+                                (function(n) {
+                                    setTimeout(function() {
+                                        characteries[n].fillStyle =
+                                            (n === length - 1) ? 'rgba(0,0,0,0)' :
+                                            characteries[n + 1].fillStyle;
+                                    }, characterList.speed);
+                                })(i);
+                            }
+                        }
+                    })(Math.random());
+                }, characterList.speed);
+            }
+        })(this);
     }
 
     function CharacterRain(amount) {
@@ -160,37 +159,41 @@
                 width: window.innerWidth,
                 height: window.innerHeight
             }),
-            characterLists: []
+            amount: amount || util.randInt()
         });
+        var context = this.canvas.getContext('2d');
 
-        for (var i = 0, n = amount || util.randInt(1, this.canvas.width); i < n; i++) {
-            (function(characterRain) {
-                characterRain.characterLists.push(
-                    new CharacterList(
-                    	util.randInt(2, characterRain.canvas.height)
-                    )
-                );
-            })(this);
-        }
+        context.textBaseline = 'top';
+        context.shadowBlur = 10;
+        context.shadowColor = 'lightgreen';
     }
 
     CharacterRain.prototype.render = function(speed) {
+        var characterLists = [];
+
+        for (var i = 0; i < this.amount; i++) {
+            characterLists.push(
+                new CharacterList(util.randInt(3, 26))
+            );
+        }
+
         (function(characterRain) {
-            characterRain.characterLists.forEach(function(characterList) {
+            characterLists.forEach(function(characterList) {
                 setTimeout(function() {
-                    characterList.render(characterRain.canvas, {
-                        x: util.randInt(0, characterRain.canvas.width),
-                        y: util.randInt(0, characterRain.canvas.height)
-                    });
+                    characterList.render(
+                        characterRain.canvas,
+                        util.randInt(0, characterRain.canvas.width),
+                        util.randInt(0, characterRain.canvas.height / 2)
+                    );
                 }, util.randInt(0, speed));
             });
 
             setTimeout(function() {
                 characterRain.render(speed);
-            }, util.randInt(speed * 0.6, speed * 1.8));
+            }, util.randInt(speed * 0.5, speed * 1.5));
         })(this);
     }
 
-    new CharacterRain(util.randInt()).render(3000);
+    new CharacterRain(util.randInt(8, 12)).render(3000);
 
 })(document, window)
